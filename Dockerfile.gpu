@@ -1,0 +1,235 @@
+#airgeddon Dockerfile with GPU Support
+#Supports NVIDIA (CUDA), AMD (ROCm), and Intel GPU acceleration
+
+#Build arguments
+ARG GPU_SUPPORT=nvidia
+ARG CUDA_VERSION=12.2
+ARG UBUNTU_VERSION=22.04
+
+#=============================================================================
+# NVIDIA GPU Support
+#=============================================================================
+FROM nvidia/cuda:${CUDA_VERSION}-devel-ubuntu${UBUNTU_VERSION} as base_nvidia
+
+ENV AIRGEDDON_URL="https://github.com/v1s1t0r1sh3r3/airgeddon.git"
+ENV HASHCAT2_URL="https://github.com/v1s1t0r1sh3r3/hashcat2.0.git"
+ENV DEBIAN_FRONTEND="noninteractive"
+ENV GPU_SUPPORT="nvidia"
+
+#=============================================================================
+# AMD GPU Support (ROCm)
+#=============================================================================
+FROM rocm/dev-ubuntu:${UBUNTU_VERSION} as base_amd
+
+ENV AIRGEDDON_URL="https://github.com/v1s1t0r1sh3r3/airgeddon.git"
+ENV HASHCAT2_URL="https://github.com/v1s1t0r1sh3r3/hashcat2.0.git"
+ENV DEBIAN_FRONTEND="noninteractive"
+ENV GPU_SUPPORT="amd"
+
+#=============================================================================
+# Intel GPU Support
+#=============================================================================
+FROM ubuntu:${UBUNTU_VERSION} as base_intel
+
+ENV AIRGEDDON_URL="https://github.com/v1s1t0r1sh3r3/airgeddon.git"
+ENV HASHCAT2_URL="https://github.com/v1s1t0r1sh3r3/hashcat2.0.git"
+ENV DEBIAN_FRONTEND="noninteractive"
+ENV GPU_SUPPORT="intel"
+
+#Install Intel GPU drivers
+RUN apt update && apt install -y \
+    intel-gpu-tools \
+    clinfo \
+    libclc-dev \
+    opencl-headers \
+    ocl-icd-libclc
+
+#=============================================================================
+# CPU-Only Support (Default Fallback)
+#=============================================================================
+FROM ubuntu:${UBUNTU_VERSION} as base_cpu
+
+ENV AIRGEDDON_URL="https://github.com/v1s1t0r1sh3r3/airgeddon.git"
+ENV HASHCAT2_URL="https://github.com/v1s1t0r1sh3r3/hashcat2.0.git"
+ENV DEBIAN_FRONTEND="noninteractive"
+ENV GPU_SUPPORT="cpu"
+
+#=============================================================================
+# Common Layer (All GPU Types)
+#=============================================================================
+FROM base_${GPU_SUPPORT} as build
+
+#Credits & Data
+LABEL \
+    name="airgeddon" \
+    author="v1s1t0r <v1s1t0r.1s.h3r3@gmail.com>" \
+    maintainer="OscarAkaElvis <oscar.alfonso.diaz@gmail.com>" \
+    description="Airgeddon with GPU acceleration support for wireless network auditing"
+
+#Set locales
+RUN apt update && apt -y install locales && \
+    locale-gen en_US.UTF-8 && \
+    sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen && \
+    echo 'LANG="en_US.UTF-8"' > /etc/default/locale && \
+    dpkg-reconfigure --frontend=noninteractive locales && \
+    update-locale LANG=en_US.UTF-8
+
+#Env vars for locales
+ENV LANG="en_US.UTF-8"
+ENV LANGUAGE="en_US:en"
+ENV LC_ALL="en_US.UTF-8"
+
+#Install essential build tools
+RUN apt -y install build-essential git wget curl
+
+#Install airgeddon essential tools
+RUN apt -y install \
+    gawk \
+    iw \
+    aircrack-ng \
+    xterm \
+    iproute2 \
+    pciutils \
+    procps \
+    tmux
+
+#Install airgeddon internal tools
+RUN apt -y install \
+    ethtool \
+    usbutils \
+    rfkill \
+    x11-utils \
+    ccze \
+    systemd \
+    x11-xserver-utils \
+    arping \
+    sox
+
+#Install airgeddon optional tools
+RUN apt -y install \
+    crunch \
+    hashcat \
+    mdk3 \
+    mdk4 \
+    hostapd \
+    lighttpd \
+    iptables \
+    nftables \
+    ettercap-text-only \
+    bettercap \
+    isc-dhcp-server \
+    dnsmasq \
+    reaver \
+    bully \
+    pixiewps \
+    hostapd-wpe \
+    asleap \
+    john \
+    openssl \
+    hcxtools \
+    hcxdumptool \
+    beef-xss \
+    tshark \
+    tcpdump \
+    hostapd-mana
+
+#Install Python for GPU optimization scripts
+RUN apt -y install \
+    python3 \
+    python3-pip \
+    python3-dev && \
+    pip3 install --upgrade pip && \
+    pip3 install numpy scipy nvidia-ml-py pyyaml
+
+#Install GPU-specific packages based on build
+RUN if [ "$GPU_SUPPORT" = "nvidia" ]; then \
+        apt -y install cuda-toolkit-12-2 libcublas-12-2; \
+    elif [ "$GPU_SUPPORT" = "amd" ]; then \
+        apt -y install rocm-libs rocm-smi; \
+    fi
+
+#Env var for display
+ENV DISPLAY=":0"
+
+#Create volume dir for external files
+RUN mkdir -p /io /opt/airgeddon/plugins
+
+#Set workdir
+WORKDIR /opt/
+
+#Install airgeddon
+RUN mkdir -p airgeddon
+COPY . /opt/airgeddon
+
+#Install GPU acceleration plugin
+COPY plugins/gpu_acceleration.sh /opt/airgeddon/plugins/
+
+#Remove auto update and force iptables
+RUN sed -i 's|AIRGEDDON_AUTO_UPDATE=true|AIRGEDDON_AUTO_UPDATE=false|' airgeddon/.airgeddonrc && \
+    sed -i 's|AIRGEDDON_FORCE_IPTABLES=false|AIRGEDDON_FORCE_IPTABLES=true|' airgeddon/.airgeddonrc
+
+#Make bash script files executable
+RUN chmod +x /opt/airgeddon/*.sh && \
+    chmod +x /opt/airgeddon/plugins/*.sh
+
+#Downgrade Hashcat (specific version for compatibility)
+RUN git clone ${HASHCAT2_URL} && \
+    cp /opt/hashcat2.0/hashcat /usr/bin/ && \
+    chmod +x /usr/bin/hashcat
+
+#GPU-specific optimizations
+RUN if [ "$GPU_SUPPORT" = "nvidia" ]; then \
+        echo "NVIDIA GPU support enabled"; \
+        apt -y install nvidia-smi; \
+    elif [ "$GPU_SUPPORT" = "amd" ]; then \
+        echo "AMD GPU support enabled"; \
+        apt -y install rocm-smi; \
+    elif [ "$GPU_SUPPORT" = "intel" ]; then \
+        echo "Intel GPU support enabled"; \
+        apt -y install intel-gpu-tools; \
+    fi
+
+#Health check script
+COPY <<EOF /opt/health_check.sh
+#!/bin/bash
+# GPU health check
+if command -v nvidia-smi &>/dev/null; then
+    nvidia-smi | grep -q "NVIDIA-SMI" && exit 0
+elif command -v rocm-smi &>/dev/null; then
+    rocm-smi &>/dev/null && exit 0
+elif command -v intel-gpu-tools &>/dev/null; then
+    clinfo | grep -q "GPU" && exit 0
+fi
+exit 0  # CPU-only is acceptable
+EOF
+RUN chmod +x /opt/health_check.sh
+
+#Clean packages
+RUN apt clean && apt autoclean && apt autoremove -y
+
+#Clean unnecessary files
+RUN rm -rf /opt/airgeddon/imgs \
+    /opt/airgeddon/.github \
+    /opt/airgeddon/.editorconfig \
+    /opt/airgeddon/CONTRIBUTING.md \
+    /opt/airgeddon/CODE_OF_CONDUCT.md \
+    /opt/airgeddon/pindb_checksum.txt \
+    /opt/airgeddon/binaries \
+    /opt/hashcat2.0 \
+    /tmp/* \
+    /var/lib/apt/lists/*
+
+#Expose BeEF control panel port
+EXPOSE 3000
+
+#VOLUMES
+VOLUME /io
+VOLUME /opt/airgeddon/plugins
+
+#Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD bash /opt/health_check.sh
+
+#Start command
+ENV GPU_SUPPORT="${GPU_SUPPORT}"
+CMD ["/bin/bash", "-c", "/opt/airgeddon/airgeddon.sh"]
