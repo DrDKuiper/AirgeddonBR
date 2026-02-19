@@ -1,0 +1,35 @@
+# ============================================================================
+# Airgeddon Improvements - Git Attributes Configuration
+# ============================================================================
+# Este arquivo garante que os arquivos Bash sejam tratados corretamente
+# pelo Git em diferentes plataformas (Windows, Linux, macOS)
+
+# Arquivos Bash - sempre LF (Unix line endings)
+*.sh text eol=lf
+*.bats text eol=lf
+
+# Documentação - sempre LF
+*.md text eol=lf
+*.txt text eol=lf
+
+# Arquivos de configuração - sempre LF
+.gitignore text eol=lf
+.gitattributes text eol=lf
+
+# Arquivos de texto genérico
+*.log text eol=lf
+*.csv text eol=lf
+
+# JSON - sempre LF
+*.json text eol=lf
+
+# Definir diferença de arquivo para scripts Bash
+*.sh diff=bash
+*.bats diff=bash
+
+# ============================================================================
+# Configuração de Diferenças (Diffs)
+# ============================================================================
+# Bash scripts usam coloração especial em diffs
+[diff "bash"]
+    xfuncname = ^[[:space:]]*(function |[[:alpha:]_][[:alnum:]_]*[[:space:]]*\(\))

@@ -1,0 +1,146 @@
+# ============================================================================
+# Airgeddon Improvements - Git Ignore Configuration
+# ============================================================================
+
+# Arquivos de Log
+# ============================================================================
+.logs/
+*.log
+*.err
+
+# Arquivos Temporários
+# ============================================================================
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Diretórios de Cache/Compilação
+# ============================================================================
+.cache/
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+node_modules/
+
+# Arquivos de Teste Temporários
+# ============================================================================
+/tmp/
+/temp/
+test_output.txt
+coverage.txt
+
+# Arquivos de Relatório Gerados
+# ============================================================================
+/reports/
+report_*.json
+report_*.html
+report_*.csv
+report_*.txt
+
+# Arquivos de Configuração Local
+# ============================================================================
+.env
+.env.local
+config.local.sh
+settings.local
+
+# Arquivos do Editor
+# ============================================================================
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+.vim/
+.emacs.d/
+
+# Arquivos de Backup de Desenvolvimento
+# ============================================================================
+*.orig
+*.patch
+*.diff
+
+# Arquivos do SO
+# ============================================================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+desktop.ini
+
+# ============================================================================
+# EXCEÇÕES - Arquivos que DEVEM ser incluídos no Git
+# ============================================================================
+
+# Fonte (NÃO ignorar)
+!*.sh
+!*.bats
+
+# Documentação (NÃO ignorar)
+!*.md
+!*.txt
+
+# Diretórios essenciais (NÃO ignorar)
+!core/
+!tools/
+!ui/
+!tests/
+
+# Arquivos de configuração do projeto (NÃO ignorar)
+!.gitignore
+!.gitattributes
+
+# ============================================================================
+# Padrões Específicos
+# ============================================================================
+
+# Ignorar scripts de teste gerados automaticamente
+test_*.sh.bak
+
+# Ignorar arquivos de lock (exceto se necessário)
+*.lock
+
+# Ignorar diretórios de dependências
+deps/
+vendor/
+
+# ============================================================================
+# Notas de Desenvolvimento
+# ============================================================================
+# Este arquivo garante que apenas os arquivos essenciais
+# (código-fonte, testes, documentação) sejam versionados no Git,
+# mantendo o repositório limpo e eficiente.
+#
+# Arquivos incluídos:
+# ├── core/logging.sh
+# ├── tools/
+# │   ├── vulnerability_analyzer.sh
+# │   └── report_generator.sh
+# ├── ui/
+# │   ├── dashboard.sh
+# │   ├── ui_components.sh
+# │   ├── tui_manager.sh
+# │   └── network_viewer.sh
+# ├── tests/
+# │   ├── test_*.bats
+# │   └── test_*.sh
+# ├── demo*.sh
+# ├── *.md (documentação)
+# └── *.txt (arquivos texto essenciais)
+#
+# Arquivos excluídos:
+# ├── .logs/ (logs de execução)
+# ├── /tmp/ (arquivos temporários)
+# ├── /reports/ (relatórios gerados)
+# ├── *.log (logs)
+# ├── .env (configurações locais)
+# └── Arquivos de editor (.vscode, .idea, etc)
+# ============================================================================
