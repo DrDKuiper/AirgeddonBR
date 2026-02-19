@@ -121,10 +121,10 @@ Check mandatory patterns:
 
 ## Essential File References
 
-- **[airgeddon.sh](airgeddon.sh#L1)**: Core logic (variable setup at L15-145, menus L2027+, main function L19549+)
-- **[language_strings.sh](language_strings.sh#L1)**: Multilingual strings (initialize at L18, example arrays L30+)
-- **[plugins/plugin_template.sh](plugins/plugin_template.sh)**: Plugin structure reference
-- **[CONTRIBUTING.md](CONTRIBUTING.md)**: Detailed dev guidelines, code style, commit rules
+- **[airgeddon.sh](../airgeddon.sh)**: Core logic (variable setup at L15-145, menus L2027+, main function L19549+)
+- **[language_strings.sh](../language_strings.sh)**: Multilingual strings (initialize at L18, example arrays L30+)
+- **[plugins/plugin_template.sh](../plugins/plugin_template.sh)**: Plugin structure reference
+- **[CONTRIBUTING.md](../CONTRIBUTING.md)**: Detailed dev guidelines, code style, commit rules
 - **[.github/workflows/](https://github.com/AirgeddonBR/.github/workflows)**: CI/CD validation
 
 ## Debugging & Development
@@ -630,10 +630,10 @@ my_plugin_override_personal_decrypt_menu() {
 
 ### Files Related to GPU
 
-- **[plugins/gpu_acceleration.sh](plugins/gpu_acceleration.sh)**: Main GPU plugin (800+ lines)
-- **[Dockerfile.gpu](Dockerfile.gpu)**: Multi-stage GPU-aware Docker build
-- **[GPU_SETUP_GUIDE.md](GPU_SETUP_GUIDE.md)**: Complete installation + benchmarking guide
-- **[MODERN_WPA_ANALYSIS.md](.github/MODERN_WPA_ANALYSIS.md#6-gpu-accelerated-real-time-cracking)**: GPU cluster distribution
+- **[plugins/gpu_acceleration.sh](../plugins/gpu_acceleration.sh)**: Main GPU plugin (800+ lines)
+- **[Dockerfile.gpu](../Dockerfile.gpu)**: Multi-stage GPU-aware Docker build
+- **[GPU_SETUP_GUIDE.md](../GPU_SETUP_GUIDE.md)**: Complete installation + benchmarking guide
+- **[MODERN_WPA_ANALYSIS.md](MODERN_WPA_ANALYSIS.md)**: GPU cluster distribution
 
 ---
 

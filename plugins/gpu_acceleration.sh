@@ -29,6 +29,7 @@ declare -g hashcat_gpu_enabled=0
 declare -g hashcat_workload_profile=3           # 1=low, 2=med, 3=high, 4=insane
 declare -g gpu_benchmark_results=""
 declare -g enable_gpu_info_menu=1
+declare -g gpu_hashcat_cmd_fix=""
 
 ###### DEPENDENCY ARRAYS ######
 
@@ -55,12 +56,9 @@ gpu_dependencies_intel=(
 function gpu_detect_device() {
     debug_print
 
-    local gpu_found=0
-
     # Check for NVIDIA GPU
     if command -v nvidia-smi &> /dev/null; then
         gpu_type="NVIDIA"
-        gpu_found=1
         gpu_count=$(nvidia-smi --list-gpus | wc -l)
         gpu_extract_nvidia_info
         return 0
@@ -69,7 +67,6 @@ function gpu_detect_device() {
     # Check for AMD GPU
     if command -v rocm-smi &> /dev/null; then
         gpu_type="AMD"
-        gpu_found=1
         gpu_count=$(rocm-smi --showid | grep -c "GPU")
         gpu_extract_amd_info
         return 0
@@ -78,7 +75,6 @@ function gpu_detect_device() {
     # Check for Intel GPU
     if command -v clinfo &> /dev/null; then
         gpu_type="INTEL"
-        gpu_found=1
         gpu_count=$(clinfo | grep -c "Device Type.*GPU")
         gpu_extract_intel_info
         return 0
@@ -107,11 +103,13 @@ function gpu_extract_nvidia_info() {
     gpu_devices=$(seq 0 $((gpu_count - 1)) | paste -sd ',' -)
 
     # Verify CUDA capability
-    local cuda_capability=$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader | head -1)
-    if (( $(echo "$cuda_capability < 3.5" | bc -l) )); then
-        language_strings "${language}" X "yellow"  # "GPU too old for hashcat (< Compute 3.5)"
-        hashcat_gpu_enabled=0
-        return 1
+    local cuda_capability
+    cuda_capability=$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader 2> /dev/null | head -1)
+    if [ -n "${cuda_capability}" ] && command -v bc > /dev/null 2>&1; then
+        if (( $(echo "${cuda_capability} < 3.5" | bc -l) )); then
+            hashcat_gpu_enabled=0
+            return 1
+        fi
     fi
 
     hashcat_gpu_enabled=1
@@ -155,8 +153,8 @@ function gpu_extract_intel_info() {
 function gpu_optimize_hashcat_command() {
     debug_print
 
-    local -n hashcat_cmd_ref=$1  # Reference to hashcat command array
-    
+    gpu_hashcat_cmd_fix=""
+
     if [ "$hashcat_gpu_enabled" -ne 1 ]; then
         return 0  # No GPU optimization needed
     fi
@@ -164,25 +162,29 @@ function gpu_optimize_hashcat_command() {
     case "$gpu_type" in
         "NVIDIA")
             # NVIDIA CUDA optimization
-            hashcat_cmd_ref+=("-d" "1")                              # Device: GPU only
-            hashcat_cmd_ref+=("--workload-profile=$hashcat_workload_profile")
-            hashcat_cmd_ref+=("-O")                                  # Optimize: slower kernel, less memory
-            hashcat_cmd_ref+=("-n" "128")                            # Thread blocks
-            hashcat_cmd_ref+=("-u" "256")                            # Thread per block
-            hashcat_cmd_ref+=("--gpu-devices=$gpu_devices")          # Use all available GPUs
+            gpu_hashcat_cmd_fix+=" -D 2,1"
+            gpu_hashcat_cmd_fix+=" --workload-profile=${hashcat_workload_profile}"
+            gpu_hashcat_cmd_fix+=" -O"
+            gpu_hashcat_cmd_fix+=" -n 128"
+            gpu_hashcat_cmd_fix+=" -u 256"
+            if [ -n "${gpu_devices}" ]; then
+                gpu_hashcat_cmd_fix+=" --gpu-devices=${gpu_devices}"
+            fi
             ;;
         "AMD")
             # AMD HIP/OpenCL optimization
-            hashcat_cmd_ref+=("-d" "2")                              # Device: OpenCL GPU
-            hashcat_cmd_ref+=("--workload-profile=$hashcat_workload_profile")
-            hashcat_cmd_ref+=("-O")
-            hashcat_cmd_ref+=("--opencl-devices=$gpu_devices")       # ROCm device specification
+            gpu_hashcat_cmd_fix+=" -D 2,1"
+            gpu_hashcat_cmd_fix+=" --workload-profile=${hashcat_workload_profile}"
+            gpu_hashcat_cmd_fix+=" -O"
+            if [ -n "${gpu_devices}" ]; then
+                gpu_hashcat_cmd_fix+=" --opencl-devices=${gpu_devices}"
+            fi
             ;;
         "INTEL")
             # Intel OpenCL optimization
-            hashcat_cmd_ref+=("-d" "2")                              # Device: OpenCL
-            hashcat_cmd_ref+=("--workload-profile=2")               # Intel iGPU lower profile
-            hashcat_cmd_ref+=("--opencl-platform=0")                # Intel OpenCL platform
+            gpu_hashcat_cmd_fix+=" -D 2,1"
+            gpu_hashcat_cmd_fix+=" --workload-profile=2"
+            gpu_hashcat_cmd_fix+=" --opencl-platform=0"
             ;;
     esac
 
@@ -198,12 +200,12 @@ function gpu_display_status() {
     debug_print
 
     if [ "$gpu_type" = "NONE" ]; then
-        language_strings "${language}" X "red"  # "No GPU detected. Using CPU."
+        echo "[GPU] No GPU detected. Using CPU mode."
         return 1
     fi
 
     echo
-    language_strings "${language}" X "cyan"  # "GPU Information:"
+    echo "[GPU] Information:"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
     printf "  GPU Type:          %s\n" "$gpu_type"
@@ -286,11 +288,11 @@ function gpu_benchmark_perfomance() {
     debug_print
 
     if [ "$hashcat_gpu_enabled" -ne 1 ]; then
-        language_strings "${language}" X "yellow"  # "GPU not available for benchmarking"
+        echo "[GPU] GPU not available for benchmark."
         return 1
     fi
 
-    language_strings "${language}" X "blue"  # "Running GPU benchmark..."
+    echo "[GPU] Running benchmark..."
     echo
 
     local test_hash="8846f7eaee8fb117ad06bdd830b7586c"  # MD5 test hash
@@ -332,7 +334,7 @@ function gpu_benchmark_perfomance() {
 #############################################################################
 
 # Add GPU info to decrypt menu
-function gpu_acceleration_plugin_prehook_decrypt_menu() {
+function gpu_acceleration_prehook_decrypt_menu() {
     debug_print
 
     # Initialize GPU detection before decrypt menu shows
@@ -342,7 +344,7 @@ function gpu_acceleration_plugin_prehook_decrypt_menu() {
 }
 
 # Add GPU submenu to personal decrypt
-function gpu_acceleration_plugin_prehook_personal_decrypt_menu() {
+function gpu_acceleration_prehook_personal_decrypt_menu() {
     debug_print
 
     # Show GPU status if available
@@ -352,11 +354,13 @@ function gpu_acceleration_plugin_prehook_personal_decrypt_menu() {
 }
 
 # Hook into hashcat execution to add GPU parameters
-function gpu_acceleration_plugin_prehook_execute_hashcat() {
+function gpu_acceleration_posthook_set_hashcat_parameters() {
     debug_print
 
-    if [ "$hashcat_gpu_enabled" -eq 1 ]; then
-        language_strings "${language}" X "green"  # "GPU acceleration enabled"
+    gpu_optimize_hashcat_command
+
+    if [ "$hashcat_gpu_enabled" -eq 1 ] && [ -n "${gpu_hashcat_cmd_fix}" ]; then
+        hashcat_cmd_fix+="${gpu_hashcat_cmd_fix}"
     fi
 }
 
@@ -368,7 +372,7 @@ function gpu_acceleration_plugin_prehook_execute_hashcat() {
 function gpu_install_drivers() {
     debug_print
 
-    language_strings "${language}" X "yellow"  # "GPU Driver Installation Helper"
+    echo "[GPU] Driver installation helper"
     echo
 
     echo "Detected platform: $(lsb_release -ds 2>/dev/null || echo 'Unknown')"
@@ -482,10 +486,3 @@ function gpu_get_docker_flags() {
 # Auto-detect GPU on plugin load
 gpu_detect_device
 gpu_load_configuration
-
-# If GPU found and enabled, show information on next menu
-if [ "$gpu_type" != "NONE" ] && [ "$hashcat_gpu_enabled" -eq 1 ]; then
-    language_strings "${language}" X "green"  # "GPU Acceleration plugin loaded successfully"
-else
-    language_strings "${language}" X "yellow"  # "GPU Acceleration: CPU-only mode"
-fi
